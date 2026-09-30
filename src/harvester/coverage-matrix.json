@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "price-feed-coverage-v1",
+  "approvedRegions": {
+    "aws": ["us-east-1"],
+    "azure": ["eastus2"]
+  },
+  "categories": [
+    {
+      "category": "vm-compute-and-os",
+      "awsSource": "AmazonEC2",
+      "azureSource": "Virtual Machines",
+      "status": "Covered"
+    },
+    {
+      "category": "block-storage-capacity-iops-throughput",
+      "awsSource": "AmazonEC2: Storage, System Operation, Provisioned Throughput",
+      "azureSource": "Storage: Premium SSD v2",
+      "status": "Covered"
+    },
+    {
+      "category": "postgresql-compute-storage-backup",
+      "awsSource": "AmazonRDS",
+      "azureSource": "Azure Database for PostgreSQL",
+      "status": "Covered"
+    },
+    {
+      "category": "compute-commitments",
+      "awsSource": "AWSComputeSavingsPlan",
+      "azureSource": "Virtual Machines savingsPlan entries",
+      "status": "Covered"
+    },
+    {
+      "category": "internet-and-interzone-transfer",
+      "awsSource": "AmazonEC2 data-transfer products",
+      "azureSource": "Bandwidth",
+      "status": "Covered"
+    },
+    {
+      "category": "load-balancer",
+      "awsSource": null,
+      "azureSource": "Load Balancer",
+      "status": "UnpricedUnlessExcluded",
+      "reason": "The exact AWS Elastic Load Balancing offer and approved selector are not yet signed in the v1 SkuMap."
+    },
+    {
+      "category": "security-observability-support",
+      "awsSource": null,
+      "azureSource": null,
+      "status": "UnpricedUnlessExcluded",
+      "reason": "These shared-platform dimensions require an explicit customer policy or approved Exclusion and are never silently zeroed."
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+#cloud-config
+write_files:
+  - path: /usr/local/sbin/mount-harvester-disk
+    owner: root:root
+    permissions: '0700'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      device=/dev/disk/azure/scsi1/lun0
+      target=/var/lib/pricing-harvester
+      for attempt in $(seq 1 60); do
+        if [ -b "$device" ]; then break; fi
+        sleep 2
+      done
+      if [ ! -b "$device" ]; then
+        echo "Managed data disk LUN 0 is not present; refusing to mount or format." >&2
+        exit 1
+      fi
+      disk=$(readlink -f "$device")
+      if [ "$(lsblk -nr -o TYPE "$disk" | wc -l)" -ne 1 ]; then
+        echo "Data disk has partitions or child devices; manual inspection required." >&2
+        exit 1
+      fi
+      filesystem=$(blkid -p -s TYPE -o value "$disk" || true)
+      if [ -z "$filesystem" ]; then
+        if [ -n "$(wipefs -n --noheadings "$disk")" ]; then
+          echo "Data disk has unknown signatures; refusing to format." >&2
+          exit 1
+        fi
+        mkfs.ext4 -F "$disk"
+      elif [ "$filesystem" != ext4 ]; then
+        echo "Existing data disk filesystem is not ext4; refusing to format." >&2
+        exit 1
+      fi
+      udevadm settle
+      uuid=$(blkid -p -s UUID -o value "$disk")
+      if [ -z "$uuid" ]; then
+        echo "Cannot identify data disk UUID." >&2
+        exit 1
+      fi
+      mkdir -p "$target"
+      if mountpoint -q "$target"; then
+        if [ "$(findmnt -n -o UUID --target "$target")" != "$uuid" ]; then
+          echo "A different filesystem is mounted at $target." >&2
+          exit 1
+        fi
+      fi
+      if findmnt --fstab --mountpoint "$target" >/dev/null; then
+        if [ "$(findmnt -n -o SOURCE --fstab --mountpoint "$target")" != "UUID=$uuid" ]; then
+          echo "Conflicting fstab entry for $target." >&2
+          exit 1
+        fi
+      else
+        cp -p /etc/fstab /etc/fstab.before-harvester
+        printf 'UUID=%s %s ext4 defaults,nofail,x-systemd.device-timeout=120 0 2\n' "$uuid" "$target" >> /etc/fstab
+      fi
+      if ! mountpoint -q "$target"; then
+        mount "$target"
+      fi
+      umask 077
+      mkdir -p "$target/runs"
+  - path: /usr/local/sbin/check-harvester-disk
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      device=/dev/disk/azure/scsi1/lun0
+      target=/var/lib/pricing-harvester
+      if [ ! -b "$device" ] || ! mountpoint -q "$target"; then
+        echo "Harvester data disk is not mounted; refusing collection." >&2
+        exit 1
+      fi
+      expected=$(blkid -p -s UUID -o value "$(readlink -f "$device")")
+      actual=$(findmnt -n -o UUID --mountpoint "$target")
+      if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
+        echo "Unexpected filesystem at harvester mount; refusing collection." >&2
+        exit 1
+      fi
+runcmd:
+  - [bash, /usr/local/sbin/mount-harvester-disk]

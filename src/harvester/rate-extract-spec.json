@@ -1,0 +1,969 @@
+{
+  "specVersion": "rate-extract-spec-v1",
+  "description": "Maps each SkuMap rate key to exactly one harvested row (or a documented formula over rows) with explicit equality selectors. Region comes from the snapshot scope, which must match 'scope'.",
+  "scope": {
+    "azureRegion": "eastus2",
+    "awsRegion": "us-east-1"
+  },
+  "extract": {
+    "snapshotIdTemplate": "{sourceSnapshotId}-demo-extract-v2",
+    "schemaVersion": "pilot-pricebook-v1",
+    "nonProduction": true,
+    "commercialView": "List",
+    "sourceUrls": [
+      "https://prices.azure.com/api/retail/prices",
+      "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/index.json",
+      "https://pricing.us-east-1.amazonaws.com/savingsPlan/v1.0/aws/AWSComputeSavingsPlan/current/region_index.json"
+    ],
+    "noticeTemplate": "Demo extract from authenticated snapshot {sourceSnapshotId} for approved East US 2 and us-east-1 mappings. Three-year All Upfront reservation term charges are normalized over 26,280 hours, and workload-isolated commitments bill 730 hours per instance-month regardless of lower runtime. Compute Savings Plan and Reservation discounts apply only to approved VM compute lines; database compute, storage, network, and software remain at List unless separately mapped. RHEL uplift remains a documented demo assumption because that software charge is not present in the harvested Azure Retail Prices scope. Do not use this workbook as a purchasing quote."
+  },
+  "rates": {
+    "aws.block.capacity.gb_month": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "Storage",
+          "term": "OnDemand",
+          "unit": "GB-Mo",
+          "dimensions": {
+            "volumeApiName": "gp3",
+            "usagetype": "EBS:VolumeUsage.gp3"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "gp3 capacity"
+    },
+    "aws.block.iops_month": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "System Operation",
+          "term": "OnDemand",
+          "unit": "IOPS-Mo",
+          "dimensions": {
+            "volumeApiName": "gp3",
+            "usagetype": "EBS:VolumeP-IOPS.gp3"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "gp3 provisioned IOPS"
+    },
+    "aws.block.throughput_mbps_month": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "Provisioned Throughput",
+          "term": "OnDemand",
+          "unit": "GiBps-mo",
+          "dimensions": {
+            "volumeApiName": "gp3",
+            "usagetype": "EBS:VolumeP-Throughput.gp3"
+          }
+        }
+      },
+      "formula": {
+        "type": "scaled",
+        "row": "row",
+        "divide": "1024"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "gp3 throughput normalized from GiBps-month to MiBps-month"
+    },
+    "aws.postgresql.8x64.hour": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "aws",
+          "serviceCode": "AmazonRDS",
+          "productFamily": "Database Instance",
+          "term": "OnDemand",
+          "unit": "Hrs",
+          "dimensions": {
+            "instanceType": "db.r6i.2xlarge",
+            "databaseEngine": "PostgreSQL",
+            "deploymentOption": "Single-AZ",
+            "licenseModel": "No license required",
+            "usagetype": "InstanceUsage:db.r6i.2xl"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "db.r6i.2xlarge PostgreSQL Single-AZ"
+    },
+    "aws.postgresql.storage.gb_month": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "aws",
+          "serviceCode": "AmazonRDS",
+          "productFamily": "Database Storage",
+          "term": "OnDemand",
+          "unit": "GB-Mo",
+          "dimensions": {
+            "databaseEngine": "PostgreSQL",
+            "deploymentOption": "Single-AZ",
+            "volumeType": "General Purpose-GP3",
+            "usagetype": "RDS:GP3-Storage"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "PostgreSQL gp3 storage"
+    },
+    "aws.vm.linux.4x16.hour": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "Compute Instance",
+          "term": "OnDemand",
+          "unit": "Hrs",
+          "dimensions": {
+            "instanceType": "m7i.xlarge",
+            "operatingSystem": "Linux",
+            "operation": "RunInstances",
+            "tenancy": "Shared",
+            "preInstalledSw": "NA",
+            "capacitystatus": "Used",
+            "licenseModel": "No License required",
+            "usagetype": "BoxUsage:m7i.xlarge",
+            "marketoption": "OnDemand"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "m7i.xlarge Linux shared On-Demand"
+    },
+    "aws.vm.linux.4x16.hour.reservation": {
+      "sourceType": "PublishedSnapshotNormalized",
+      "selectors": {
+        "upfront": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "Compute Instance",
+          "term": "Reserved",
+          "unit": "Quantity",
+          "dimensions": {
+            "instanceType": "m7i.xlarge",
+            "operatingSystem": "Linux",
+            "operation": "RunInstances",
+            "tenancy": "Shared",
+            "preInstalledSw": "NA",
+            "capacitystatus": "Used",
+            "licenseModel": "No License required",
+            "usagetype": "BoxUsage:m7i.xlarge",
+            "marketoption": "OnDemand",
+            "LeaseContractLength": "3yr",
+            "OfferingClass": "standard",
+            "PurchaseOption": "All Upfront"
+          }
+        },
+        "recurring": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "Compute Instance",
+          "term": "Reserved",
+          "unit": "Hrs",
+          "dimensions": {
+            "instanceType": "m7i.xlarge",
+            "operatingSystem": "Linux",
+            "operation": "RunInstances",
+            "tenancy": "Shared",
+            "preInstalledSw": "NA",
+            "capacitystatus": "Used",
+            "licenseModel": "No License required",
+            "usagetype": "BoxUsage:m7i.xlarge",
+            "marketoption": "OnDemand",
+            "LeaseContractLength": "3yr",
+            "OfferingClass": "standard",
+            "PurchaseOption": "All Upfront"
+          }
+        }
+      },
+      "formula": {
+        "type": "termNormalized",
+        "upfront": "upfront",
+        "hours": "26280",
+        "recurringHourly": "recurring"
+      },
+      "places": 12,
+      "record": {
+        "sku": "upfront",
+        "row_id": "upfront",
+        "row_ids": [
+          "upfront",
+          "recurring"
+        ]
+      },
+      "note": "m7i.xlarge Linux shared Standard RI, 3-year All Upfront; USD 2092 upfront plus zero recurring, normalized over 26,280 hours"
+    },
+    "aws.vm.linux.4x16.hour.savings_plan": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "aws",
+          "serviceCode": "AWSComputeSavingsPlan",
+          "productFamily": "ComputeSavingsPlans",
+          "term": "SavingsPlan",
+          "unit": "Hrs",
+          "dimensions": {
+            "discountedInstanceType": "m7i.xlarge",
+            "discountedOperation": "RunInstances",
+            "discountedServiceCode": "AmazonEC2",
+            "discountedUsageType": "BoxUsage:m7i.xlarge",
+            "purchaseOption": "All Upfront",
+            "purchaseTerm": "3yr",
+            "usageType": "ComputeSP:3yrAllUpfront"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "m7i.xlarge Linux shared 3-year All Upfront Compute Savings Plan effective usage rate"
+    },
+    "aws.vm.linux.8x32.hour": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "Compute Instance",
+          "term": "OnDemand",
+          "unit": "Hrs",
+          "dimensions": {
+            "instanceType": "m7i.2xlarge",
+            "operatingSystem": "Linux",
+            "operation": "RunInstances",
+            "tenancy": "Shared",
+            "preInstalledSw": "NA",
+            "capacitystatus": "Used",
+            "licenseModel": "No License required",
+            "usagetype": "BoxUsage:m7i.2xlarge",
+            "marketoption": "OnDemand"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "m7i.2xlarge Linux shared On-Demand"
+    },
+    "aws.vm.linux.8x32.hour.reservation": {
+      "sourceType": "PublishedSnapshotNormalized",
+      "selectors": {
+        "upfront": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "Compute Instance",
+          "term": "Reserved",
+          "unit": "Quantity",
+          "dimensions": {
+            "instanceType": "m7i.2xlarge",
+            "operatingSystem": "Linux",
+            "operation": "RunInstances",
+            "tenancy": "Shared",
+            "preInstalledSw": "NA",
+            "capacitystatus": "Used",
+            "licenseModel": "No License required",
+            "usagetype": "BoxUsage:m7i.2xlarge",
+            "marketoption": "OnDemand",
+            "LeaseContractLength": "3yr",
+            "OfferingClass": "standard",
+            "PurchaseOption": "All Upfront"
+          }
+        },
+        "recurring": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "Compute Instance",
+          "term": "Reserved",
+          "unit": "Hrs",
+          "dimensions": {
+            "instanceType": "m7i.2xlarge",
+            "operatingSystem": "Linux",
+            "operation": "RunInstances",
+            "tenancy": "Shared",
+            "preInstalledSw": "NA",
+            "capacitystatus": "Used",
+            "licenseModel": "No License required",
+            "usagetype": "BoxUsage:m7i.2xlarge",
+            "marketoption": "OnDemand",
+            "LeaseContractLength": "3yr",
+            "OfferingClass": "standard",
+            "PurchaseOption": "All Upfront"
+          }
+        }
+      },
+      "formula": {
+        "type": "termNormalized",
+        "upfront": "upfront",
+        "hours": "26280",
+        "recurringHourly": "recurring"
+      },
+      "places": 12,
+      "record": {
+        "sku": "upfront",
+        "row_id": "upfront",
+        "row_ids": [
+          "upfront",
+          "recurring"
+        ]
+      },
+      "note": "m7i.2xlarge Linux shared Standard RI, 3-year All Upfront; USD 4183 upfront plus zero recurring, normalized over 26,280 hours"
+    },
+    "aws.vm.linux.8x32.hour.savings_plan": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "aws",
+          "serviceCode": "AWSComputeSavingsPlan",
+          "productFamily": "ComputeSavingsPlans",
+          "term": "SavingsPlan",
+          "unit": "Hrs",
+          "dimensions": {
+            "discountedInstanceType": "m7i.2xlarge",
+            "discountedOperation": "RunInstances",
+            "discountedServiceCode": "AmazonEC2",
+            "discountedUsageType": "BoxUsage:m7i.2xlarge",
+            "purchaseOption": "All Upfront",
+            "purchaseTerm": "3yr",
+            "usageType": "ComputeSP:3yrAllUpfront"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "m7i.2xlarge Linux shared 3-year All Upfront Compute Savings Plan effective usage rate"
+    },
+    "aws.vm.rhel.4x16.hour_uplift": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "Compute Instance",
+          "term": "OnDemand",
+          "unit": "Hrs",
+          "dimensions": {
+            "instanceType": "m7i.xlarge",
+            "operatingSystem": "RHEL",
+            "operation": "RunInstances:0010",
+            "tenancy": "Shared",
+            "preInstalledSw": "NA",
+            "capacitystatus": "Used",
+            "licenseModel": "No License required",
+            "usagetype": "BoxUsage:m7i.xlarge",
+            "marketoption": "OnDemand"
+          }
+        },
+        "base": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "Compute Instance",
+          "term": "OnDemand",
+          "unit": "Hrs",
+          "dimensions": {
+            "instanceType": "m7i.xlarge",
+            "operatingSystem": "Linux",
+            "operation": "RunInstances",
+            "tenancy": "Shared",
+            "preInstalledSw": "NA",
+            "capacitystatus": "Used",
+            "licenseModel": "No License required",
+            "usagetype": "BoxUsage:m7i.xlarge",
+            "marketoption": "OnDemand"
+          }
+        }
+      },
+      "formula": {
+        "type": "difference",
+        "row": "row",
+        "minus": "base"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "m7i.xlarge RHEL minus Linux"
+    },
+    "aws.vm.rhel.8x32.hour_uplift": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "Compute Instance",
+          "term": "OnDemand",
+          "unit": "Hrs",
+          "dimensions": {
+            "instanceType": "m7i.2xlarge",
+            "operatingSystem": "RHEL",
+            "operation": "RunInstances:0010",
+            "tenancy": "Shared",
+            "preInstalledSw": "NA",
+            "capacitystatus": "Used",
+            "licenseModel": "No License required",
+            "usagetype": "BoxUsage:m7i.2xlarge",
+            "marketoption": "OnDemand"
+          }
+        },
+        "base": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "Compute Instance",
+          "term": "OnDemand",
+          "unit": "Hrs",
+          "dimensions": {
+            "instanceType": "m7i.2xlarge",
+            "operatingSystem": "Linux",
+            "operation": "RunInstances",
+            "tenancy": "Shared",
+            "preInstalledSw": "NA",
+            "capacitystatus": "Used",
+            "licenseModel": "No License required",
+            "usagetype": "BoxUsage:m7i.2xlarge",
+            "marketoption": "OnDemand"
+          }
+        }
+      },
+      "formula": {
+        "type": "difference",
+        "row": "row",
+        "minus": "base"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "m7i.2xlarge RHEL minus Linux"
+    },
+    "aws.vm.windows.4x16.hour": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "Compute Instance",
+          "term": "OnDemand",
+          "unit": "Hrs",
+          "dimensions": {
+            "instanceType": "m7i.xlarge",
+            "operatingSystem": "Windows",
+            "operation": "RunInstances:0002",
+            "tenancy": "Shared",
+            "preInstalledSw": "NA",
+            "capacitystatus": "Used",
+            "licenseModel": "No License required",
+            "usagetype": "BoxUsage:m7i.xlarge",
+            "marketoption": "OnDemand"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "m7i.xlarge Windows shared On-Demand"
+    },
+    "aws.vm.windows.8x32.hour": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "aws",
+          "serviceCode": "AmazonEC2",
+          "productFamily": "Compute Instance",
+          "term": "OnDemand",
+          "unit": "Hrs",
+          "dimensions": {
+            "instanceType": "m7i.2xlarge",
+            "operatingSystem": "Windows",
+            "operation": "RunInstances:0002",
+            "tenancy": "Shared",
+            "preInstalledSw": "NA",
+            "capacitystatus": "Used",
+            "licenseModel": "No License required",
+            "usagetype": "BoxUsage:m7i.2xlarge",
+            "marketoption": "OnDemand"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "m7i.2xlarge Windows shared On-Demand"
+    },
+    "azure.block.capacity.gb_month": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "azure",
+          "serviceCode": "Storage",
+          "term": "Consumption",
+          "unit": "1 GiB/Hour",
+          "dimensions": {
+            "productName": "Azure Premium SSD v2",
+            "meterName": "Premium LRS Provisioned Capacity",
+            "skuName": "Premium LRS",
+            "type": "Consumption"
+          }
+        }
+      },
+      "formula": {
+        "type": "scaled",
+        "row": "row",
+        "multiply": "730"
+      },
+      "places": 6,
+      "record": {
+        "row_id": "row"
+      },
+      "note": "Premium SSD v2 hourly capacity normalized to month"
+    },
+    "azure.block.iops_month": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "azure",
+          "serviceCode": "Storage",
+          "term": "Consumption",
+          "unit": "1/Hour",
+          "dimensions": {
+            "productName": "Azure Premium SSD v2",
+            "meterName": "Premium LRS Provisioned IOPS",
+            "skuName": "Premium LRS",
+            "type": "Consumption",
+            "tierMinimumUnits": "3000"
+          }
+        }
+      },
+      "formula": {
+        "type": "scaled",
+        "row": "row",
+        "multiply": "730"
+      },
+      "places": 6,
+      "record": {
+        "row_id": "row"
+      },
+      "note": "Premium SSD v2 hourly IOPS normalized to month"
+    },
+    "azure.block.throughput_mbps_month": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "azure",
+          "serviceCode": "Storage",
+          "term": "Consumption",
+          "unit": "1/Hour",
+          "dimensions": {
+            "productName": "Azure Premium SSD v2",
+            "meterName": "Premium LRS Provisioned Throughput (MBps)",
+            "skuName": "Premium LRS",
+            "type": "Consumption",
+            "tierMinimumUnits": "125"
+          }
+        }
+      },
+      "formula": {
+        "type": "scaled",
+        "row": "row",
+        "multiply": "730"
+      },
+      "places": 6,
+      "record": {
+        "row_id": "row"
+      },
+      "note": "Premium SSD v2 hourly throughput normalized to month"
+    },
+    "azure.postgresql.8x64.hour": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "azure",
+          "serviceCode": "Azure Database for PostgreSQL",
+          "term": "Consumption",
+          "unit": "1 Hour",
+          "dimensions": {
+            "productName": "Azure Database for PostgreSQL Flexible Server Memory Optimized Edsv5 Series Compute",
+            "armSkuName": "Standard_E8ds_v5",
+            "meterName": "vCore",
+            "skuName": "8 vCore",
+            "type": "Consumption"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "row_id": "row"
+      },
+      "note": "PostgreSQL Flexible Server Standard_E8ds_v5"
+    },
+    "azure.postgresql.storage.gb_month": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "azure",
+          "serviceCode": "Azure Database for PostgreSQL",
+          "term": "Consumption",
+          "unit": "1 GB/Month",
+          "dimensions": {
+            "productName": "Azure Database for PostgreSQL Flex Server Storage",
+            "meterName": "Storage Data Stored",
+            "skuName": "Storage",
+            "type": "Consumption"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "row_id": "row"
+      },
+      "note": "PostgreSQL Flexible Server storage"
+    },
+    "azure.vm.linux.4x16.hour": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "azure",
+          "serviceCode": "Virtual Machines",
+          "term": "Consumption",
+          "unit": "1 Hour",
+          "dimensions": {
+            "armSkuName": "Standard_D4s_v6",
+            "meterName": "D4s v6",
+            "skuName": "D4s v6",
+            "productName": "Virtual Machines Dsv6 Series",
+            "type": "Consumption"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "Standard_D4s_v6 Linux consumption"
+    },
+    "azure.vm.linux.4x16.hour.reservation": {
+      "sourceType": "PublishedSnapshotNormalized",
+      "selectors": {
+        "row": {
+          "provider": "azure",
+          "serviceCode": "Virtual Machines",
+          "term": "Reservation",
+          "unit": "1 Hour",
+          "dimensions": {
+            "armSkuName": "Standard_D4s_v6",
+            "meterName": "D4s v6",
+            "skuName": "D4s v6",
+            "productName": "Virtual Machines Dsv6 Series",
+            "type": "Reservation",
+            "reservationTerm": "3 Years"
+          }
+        }
+      },
+      "formula": {
+        "type": "termNormalized",
+        "upfront": "row",
+        "hours": "26280"
+      },
+      "places": 12,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "Standard_D4s_v6 Linux 3-year Reservation; USD 2066 term charge normalized over 26,280 hours"
+    },
+    "azure.vm.linux.4x16.hour.savings_plan": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "azure",
+          "serviceCode": "Virtual Machines",
+          "term": "SavingsPlan",
+          "unit": "1 Hour",
+          "dimensions": {
+            "armSkuName": "Standard_D4s_v6",
+            "meterName": "D4s v6",
+            "skuName": "D4s v6",
+            "productName": "Virtual Machines Dsv6 Series",
+            "type": "Consumption",
+            "savingsPlanTerm": "3 Years"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "Standard_D4s_v6 Linux 3-year Azure savings plan effective hourly rate"
+    },
+    "azure.vm.linux.8x32.hour": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "azure",
+          "serviceCode": "Virtual Machines",
+          "term": "Consumption",
+          "unit": "1 Hour",
+          "dimensions": {
+            "armSkuName": "Standard_D8s_v6",
+            "meterName": "D8s v6",
+            "skuName": "D8s v6",
+            "productName": "Virtual Machines Dsv6 Series",
+            "type": "Consumption"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "Standard_D8s_v6 Linux consumption"
+    },
+    "azure.vm.linux.8x32.hour.reservation": {
+      "sourceType": "PublishedSnapshotNormalized",
+      "selectors": {
+        "row": {
+          "provider": "azure",
+          "serviceCode": "Virtual Machines",
+          "term": "Reservation",
+          "unit": "1 Hour",
+          "dimensions": {
+            "armSkuName": "Standard_D8s_v6",
+            "meterName": "D8s v6",
+            "skuName": "D8s v6",
+            "productName": "Virtual Machines Dsv6 Series",
+            "type": "Reservation",
+            "reservationTerm": "3 Years"
+          }
+        }
+      },
+      "formula": {
+        "type": "termNormalized",
+        "upfront": "row",
+        "hours": "26280"
+      },
+      "places": 12,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "Standard_D8s_v6 Linux 3-year Reservation; USD 4132 term charge normalized over 26,280 hours"
+    },
+    "azure.vm.linux.8x32.hour.savings_plan": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "azure",
+          "serviceCode": "Virtual Machines",
+          "term": "SavingsPlan",
+          "unit": "1 Hour",
+          "dimensions": {
+            "armSkuName": "Standard_D8s_v6",
+            "meterName": "D8s v6",
+            "skuName": "D8s v6",
+            "productName": "Virtual Machines Dsv6 Series",
+            "type": "Consumption",
+            "savingsPlanTerm": "3 Years"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "Standard_D8s_v6 Linux 3-year Azure savings plan effective hourly rate"
+    },
+    "azure.vm.windows.4x16.hour": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "azure",
+          "serviceCode": "Virtual Machines",
+          "term": "Consumption",
+          "unit": "1 Hour",
+          "dimensions": {
+            "armSkuName": "Standard_D4s_v6",
+            "meterName": "D4s v6",
+            "skuName": "D4s v6",
+            "productName": "Virtual Machines Dsv6 Series Windows",
+            "type": "Consumption"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "Standard_D4s_v6 Windows consumption"
+    },
+    "azure.vm.windows.8x32.hour": {
+      "sourceType": "PublishedSnapshot",
+      "selectors": {
+        "row": {
+          "provider": "azure",
+          "serviceCode": "Virtual Machines",
+          "term": "Consumption",
+          "unit": "1 Hour",
+          "dimensions": {
+            "armSkuName": "Standard_D8s_v6",
+            "meterName": "D8s v6",
+            "skuName": "D8s v6",
+            "productName": "Virtual Machines Dsv6 Series Windows",
+            "type": "Consumption"
+          }
+        }
+      },
+      "formula": {
+        "type": "price"
+      },
+      "places": 6,
+      "record": {
+        "sku": "row",
+        "meter": "row",
+        "row_id": "row"
+      },
+      "note": "Standard_D8s_v6 Windows consumption"
+    }
+  },
+  "assumedRates": {
+    "azure.vm.rhel.4x16.hour_uplift": {
+      "rate": "0.064000",
+      "record": {
+        "source_type": "DemoAssumption",
+        "provider": "azure",
+        "note": "Visible software uplift assumption; not present in harvested Azure scope"
+      }
+    },
+    "azure.vm.rhel.8x32.hour_uplift": {
+      "rate": "0.128000",
+      "record": {
+        "source_type": "DemoAssumption",
+        "provider": "azure",
+        "note": "Visible software uplift assumption; not present in harvested Azure scope"
+      }
+    }
+  }
+}

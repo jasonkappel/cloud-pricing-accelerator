@@ -1,0 +1,291 @@
+{
+  "schemaVersion": "skumap-seed-v1",
+  "generatedOn": "2026-09-11",
+  "spineNote": "Mappings, match reasoning, and deterministic quantity formulas only. No rates. Rates resolve solely from the dated PriceBook. Meter queries are targeting hints to confirm against the live catalog, not final identifiers. Every entry is a proposed default and stays unpriced until a reviewer approves its SkuMap version. Defaults are never the cheapest candidate by construction.",
+  "matchClassLegend": {
+    "equivalent": "Same capability, performance envelope, and billing shape. Like-for-like.",
+    "closest-available": "Nearest real option with a named difference the reviewer must see. Priceable, not parity.",
+    "requires-redesign": "No like-for-like map without changing the architecture. Flagged, not silently priced.",
+    "unsupported": "Out of v1 scope. Marked unpriced, never approximated."
+  },
+  "attributeGroups": ["TopologyTier", "StoragePerformanceProfile", "NetworkTransferProfile", "BackupPolicy", "SupportTier"],
+  "sameIsaRule": "Default compute maps never cross instruction set. x86 vCPU is one hyperthread on both clouds (Intel-Intel and AMD-AMD are like-for-like). Arm vCPU is one physical core with no SMT on both. Arm-to-x86 is a candidate option marked closest-available, valid only when the customer confirms the app is validated on that architecture.",
+  "instanceFamilyMap": [
+    {
+      "neutralProfile": "general-purpose",
+      "vcpuToRam": "1:4",
+      "awsDefault": ["m7i", "m6i"],
+      "azureDefault": ["Dsv6", "Ddsv6", "Dsv5", "Ddsv5"],
+      "matchClass": "equivalent",
+      "candidateOptions": [
+        {"aws": "m7a", "azure": "Dasv6", "isa": "AMD", "matchClass": "equivalent"},
+        {"aws": "m7g", "azure": "Dpsv6", "isa": "Arm", "matchClass": "closest-available"}
+      ]
+    },
+    {
+      "neutralProfile": "compute-optimized",
+      "vcpuToRam": "1:2",
+      "awsDefault": ["c7i", "c6i"],
+      "azureDefault": ["Fsv2", "Famsv6"],
+      "matchClass": "equivalent",
+      "candidateOptions": [
+        {"aws": "c7a", "azure": "Famsv6", "isa": "AMD", "matchClass": "equivalent"},
+        {"aws": "c7g", "azure": "Dpsv6", "isa": "Arm", "matchClass": "closest-available"}
+      ]
+    },
+    {
+      "neutralProfile": "memory-optimized",
+      "vcpuToRam": "1:8",
+      "awsDefault": ["r7i", "r6i"],
+      "azureDefault": ["Esv6", "Edsv6", "Esv5", "Edsv5"],
+      "matchClass": "equivalent",
+      "candidateOptions": [
+        {"aws": "r7a", "azure": "Easv6", "isa": "AMD", "matchClass": "equivalent"},
+        {"aws": "r7g", "azure": "Epsv6", "isa": "Arm", "matchClass": "closest-available"}
+      ]
+    }
+  ],
+  "sizeResolution": "The neutral unit names vCPU and RAM, not a SKU. Resolve to the smallest family member meeting or exceeding both. Exact size on both clouds = equivalent. If only a larger next size exists on one cloud, drop that component to closest-available and surface the headroom.",
+  "serviceDefinitions": [
+    {
+      "id": "SD-BLOCK",
+      "name": "Attached block storage (data disk)",
+      "neutralUnit": "StorageUnit",
+      "seedOrder": 1,
+      "headline": "The cleanest equivalent in v1. Both clouds decouple capacity from performance and include the same free baseline of 3000 IOPS and 125 MB/s.",
+      "components": [
+        {
+          "componentId": "block-capacity",
+          "role": "Provisioned capacity (GiB-month)",
+          "drivenBy": "StoragePerformanceProfile",
+          "matchClass": "equivalent",
+          "capabilityEvidence": "gp3 and Premium SSD v2 both bill capacity per GiB independent of performance.",
+          "quantityFormula": "allocated_GiB * capacity_rate",
+          "aws": {"meterQuery": "AmazonEC2 | productFamily=Storage | volumeApiName=gp3 | capacity"},
+          "azure": {"meterQuery": "serviceName=Storage | productName~Premium SSD v2 | meter=capacity per GiB"}
+        },
+        {
+          "componentId": "block-iops",
+          "role": "Provisioned IOPS above the free baseline",
+          "drivenBy": "StoragePerformanceProfile",
+          "matchClass": "equivalent",
+          "capabilityEvidence": "Both include 3000 IOPS free and provision extra independently (gp3 to 80000, PSSDv2 to 80000).",
+          "quantityFormula": "max(0, target_IOPS - 3000) * iops_rate",
+          "aws": {"meterQuery": "AmazonEC2 | productFamily=System Operation | volumeApiName=gp3 | IOPS"},
+          "azure": {"meterQuery": "serviceName=Storage | productName~Premium SSD v2 | meter=provisioned IOPS"}
+        },
+        {
+          "componentId": "block-throughput",
+          "role": "Provisioned throughput above the free baseline",
+          "drivenBy": "StoragePerformanceProfile",
+          "matchClass": "equivalent",
+          "capabilityEvidence": "AWS gp3 meters MiB/s while Azure meters MB/s. The requested decimal MB/s value is converted to MiB/s for AWS before each provider's 125-unit included baseline is applied.",
+          "quantityFormula": "AWS: max(0, target_MBps * 1000000 / 1048576 - 125) * aws_rate; Azure: max(0, target_MBps - 125) * azure_rate",
+          "aws": {"meterQuery": "AmazonEC2 | productFamily=Provisioned Throughput | volumeApiName=gp3"},
+          "azure": {"meterQuery": "serviceName=Storage | productName~Premium SSD v2 | meter=provisioned throughput"}
+        },
+        {
+          "componentId": "block-backup",
+          "role": "Snapshot / disk backup storage",
+          "drivenBy": "BackupPolicy",
+          "matchClass": "closest-available",
+          "capabilityEvidence": "Snapshot billing structures differ; retained GB is comparable.",
+          "quantityFormula": "retained_GB * backup_rate",
+          "aws": {"meterQuery": "see crossCutting backup-storage"},
+          "azure": {"meterQuery": "see crossCutting backup-storage"}
+        }
+      ],
+      "notes": [
+        "Capacity, IOPS, and throughput are equivalent because the free baseline and independent-provisioning model match. This is where the tool can say like-for-like and mean it.",
+        "AWS meters GiB and MiB/s; Azure meters GiB and MB/s. Resolver normalizes and surfaces the unit basis.",
+        "Premium SSD v2 has zonal placement constraints in some regions. That is a deployment fact for the assumptions, not a price meter."
+      ]
+    },
+    {
+      "id": "SD-VM-LNX",
+      "name": "Linux IaaS virtual machine",
+      "neutralUnit": "ComputeUnit (OS=Linux)",
+      "seedOrder": 2,
+      "components": [
+        {
+          "componentId": "vm-lnx-compute",
+          "role": "Instance-hour",
+          "drivenBy": "TopologyTier",
+          "matchClass": "equivalent",
+          "capabilityEvidence": "Backbone same-ISA map at equal vCPU and RAM.",
+          "quantityFormula": "rate * runtime_hours * instance_count",
+          "aws": {"meterQuery": "AmazonEC2 | Compute Instance | tenancy=Shared | os=Linux | mapped instance"},
+          "azure": {"meterQuery": "serviceName=Virtual Machines | serviceFamily=Compute | mapped Dsv-series size (base rate)"}
+        },
+        {
+          "componentId": "vm-lnx-oslicense",
+          "role": "Commercial Linux subscription (RHEL/SUSE only)",
+          "drivenBy": "TopologyTier",
+          "matchClass": "closest-available",
+          "capabilityEvidence": "Open-source Linux has no license line on either cloud. RHEL/SUSE subscription is bundled into the marketplace image rate differently per cloud.",
+          "quantityFormula": "commercial ? uplift_rate * runtime_hours * instance_count : 0",
+          "aws": {"meterQuery": "AmazonEC2 marketplace RHEL/SUSE uplift when commercial"},
+          "azure": {"meterQuery": "Virtual Machines RHEL/SUSE image uplift when commercial"}
+        },
+        {
+          "componentId": "vm-lnx-bootdisk",
+          "role": "OS disk capacity",
+          "drivenBy": "StoragePerformanceProfile",
+          "matchClass": "closest-available",
+          "capabilityEvidence": "Azure cannot use Premium SSD v2 as an OS disk, so the boot disk maps to Premium SSD (fixed P-tier), which bills by tier not by GiB.",
+          "quantityFormula": "boot_GiB priced at disk rate; Azure rounds up to the next P-tier",
+          "aws": {"meterQuery": "AmazonEC2 | productFamily=Storage | gp3 root volume"},
+          "azure": {"meterQuery": "serviceName=Storage | Premium SSD managed OS disk (P-tier)"}
+        },
+        {"componentId": "vm-lnx-datadisk", "role": "Attached block storage", "drivenBy": "StoragePerformanceProfile", "matchClass": "equivalent", "quantityFormula": "see SD-BLOCK", "ref": "SD-BLOCK"},
+        {"componentId": "vm-lnx-topology", "role": "HA / load balancer / extra instances", "drivenBy": "TopologyTier", "matchClass": "closest-available", "quantityFormula": "count and LB from TopologyTier", "ref": "crossCutting:load-balancer"},
+        {"componentId": "vm-lnx-backup", "role": "VM / disk backup", "drivenBy": "BackupPolicy", "matchClass": "closest-available", "quantityFormula": "retained_GB from BackupPolicy", "ref": "crossCutting:backup-storage"},
+        {"componentId": "vm-lnx-egress", "role": "Egress / inter-zone", "drivenBy": "NetworkTransferProfile", "matchClass": "closest-available", "quantityFormula": "GB from NetworkTransferProfile", "ref": "crossCutting:egress"}
+      ],
+      "notes": [
+        "Open-source Linux has no OS license line on either cloud, so compute is a clean equivalent.",
+        "RHEL/SUSE turns on the closest-available license line and fires a Gap asking whether the customer brings its own subscription."
+      ]
+    },
+    {
+      "id": "SD-VM-WIN",
+      "name": "Windows IaaS virtual machine",
+      "neutralUnit": "ComputeUnit (OS=Windows)",
+      "seedOrder": 3,
+      "components": [
+        {
+          "componentId": "vm-win-compute",
+          "role": "Instance-hour, OS-neutral base (Linux rate as base)",
+          "drivenBy": "TopologyTier",
+          "matchClass": "equivalent",
+          "capabilityEvidence": "Backbone same-ISA map at equal vCPU and RAM, priced on the OS-neutral base rate.",
+          "quantityFormula": "base_rate * runtime_hours * instance_count",
+          "aws": {"meterQuery": "AmazonEC2 | Compute Instance | tenancy=Shared | Linux base rate"},
+          "azure": {"meterQuery": "serviceName=Virtual Machines | serviceFamily=Compute | base VM rate"}
+        },
+        {
+          "componentId": "vm-win-oslicense",
+          "role": "Windows Server license uplift, shown as its own line",
+          "drivenBy": "TopologyTier",
+          "matchClass": "closest-available",
+          "capabilityEvidence": "AWS bundles Windows license into the shared-tenancy rate and does not meter it separately, so it is derived as the Windows-minus-Linux delta. Azure Hybrid Benefit can zero the Azure line only with confirmed active Software Assurance or a qualifying subscription. Windows Server has no License Mobility on AWS; BYOL requires an approved Dedicated Host mapping and eligible license vintage. Not equivalent.",
+          "quantityFormula": "uplift_rate * runtime_hours * instance_count; Azure line = 0 when AHB enabled",
+          "aws": {"meterQuery": "derived: EC2 Windows rate - EC2 Linux rate for the same instance"},
+          "azure": {"meterQuery": "derived: Windows VM rate - base VM rate; AHB sets to 0"}
+        },
+        {
+          "componentId": "vm-win-bootdisk",
+          "role": "OS disk capacity",
+          "drivenBy": "StoragePerformanceProfile",
+          "matchClass": "closest-available",
+          "capabilityEvidence": "Azure OS disk cannot be Premium SSD v2; maps to Premium SSD (fixed P-tier).",
+          "quantityFormula": "boot_GiB priced at disk rate; Azure rounds up to the next P-tier",
+          "aws": {"meterQuery": "AmazonEC2 | productFamily=Storage | gp3 root volume"},
+          "azure": {"meterQuery": "serviceName=Storage | Premium SSD managed OS disk (P-tier)"}
+        },
+        {"componentId": "vm-win-datadisk", "role": "Attached block storage", "drivenBy": "StoragePerformanceProfile", "matchClass": "equivalent", "quantityFormula": "see SD-BLOCK", "ref": "SD-BLOCK"},
+        {"componentId": "vm-win-topology", "role": "HA / load balancer / extra instances", "drivenBy": "TopologyTier", "matchClass": "closest-available", "quantityFormula": "count and LB from TopologyTier", "ref": "crossCutting:load-balancer"},
+        {"componentId": "vm-win-backup", "role": "VM / disk backup", "drivenBy": "BackupPolicy", "matchClass": "closest-available", "quantityFormula": "retained_GB from BackupPolicy", "ref": "crossCutting:backup-storage"},
+        {"componentId": "vm-win-egress", "role": "Egress / inter-zone", "drivenBy": "NetworkTransferProfile", "matchClass": "closest-available", "quantityFormula": "GB from NetworkTransferProfile", "ref": "crossCutting:egress"}
+      ],
+      "notes": [
+        "The Windows license line is the load-bearing accuracy risk. Derive it as Windows-minus-Linux so it shows as a real line. AHB requires confirmed eligibility and affects only Azure; AWS Windows Server BYOL requires Dedicated Hosts and eligible license vintage. SQL Server License Mobility is a separate rule and must not be inferred from Windows Server treatment.",
+        "Boot disk is closest-available because Azure cannot use Premium SSD v2 as an OS disk; a 200 GiB gp3 root maps to the next Azure P-tier and the reviewer sees the rounding."
+      ]
+    },
+    {
+      "id": "SD-PG",
+      "name": "PostgreSQL managed instance",
+      "neutralUnit": "DatabaseUnit (engine=PostgreSQL)",
+      "seedOrder": 4,
+      "headline": "The one managed engine v1 prices, because both clouds decouple compute from managed storage and carry no proprietary license. Closest-available across the board, not equivalent.",
+      "components": [
+        {
+          "componentId": "pg-compute",
+          "role": "Managed DB instance-hour",
+          "drivenBy": "TopologyTier",
+          "matchClass": "closest-available",
+          "capabilityEvidence": "RDS offers fixed instance classes; Flexible Server offers Burstable/General Purpose/Memory Optimized tiers with configurable vCores. Default maps General Purpose to the RDS general-purpose class at equal vCPU and nearest RAM. RAM-per-vCore ratios do not line up exactly.",
+          "quantityFormula": "primary: rate * 730 hours; standby compute is priced separately by pg-ha",
+          "aws": {"meterQuery": "AmazonRDS | Database Instance | PostgreSQL | Single-AZ base class"},
+          "azure": {"meterQuery": "serviceName=Azure Database for PostgreSQL | Flexible Server | General Purpose tier | vCores"}
+        },
+        {
+          "componentId": "pg-storage",
+          "role": "Provisioned data storage",
+          "drivenBy": "StoragePerformanceProfile",
+          "matchClass": "closest-available",
+          "capabilityEvidence": "Both provision managed storage; billing granularity differs.",
+          "quantityFormula": "allocated_GB * storage_rate",
+          "aws": {"meterQuery": "AmazonRDS | Database Storage | PostgreSQL gp3"},
+          "azure": {"meterQuery": "serviceName=Azure Database for PostgreSQL | Flexible Server storage"}
+        },
+        {
+          "componentId": "pg-iops",
+          "role": "Provisioned IOPS above baseline",
+          "drivenBy": "StoragePerformanceProfile",
+          "matchClass": "closest-available",
+          "capabilityEvidence": "Both allow provisioned IOPS above an included baseline; baselines differ.",
+          "quantityFormula": "max(0, target_IOPS - baseline) * iops_rate",
+          "aws": {"meterQuery": "AmazonRDS | Provisioned IOPS when set"},
+          "azure": {"meterQuery": "Flexible Server provisioned IOPS when set"}
+        },
+        {
+          "componentId": "pg-backup",
+          "role": "Backup storage beyond the free allowance",
+          "drivenBy": "BackupPolicy",
+          "matchClass": "closest-available",
+          "capabilityEvidence": "Both include backup free up to 100% of provisioned storage, then bill per GB.",
+          "quantityFormula": "max(0, retained_GB - provisioned_GB) * backup_rate",
+          "aws": {"meterQuery": "AmazonRDS | Storage Snapshot"},
+          "azure": {"meterQuery": "Flexible Server backup"}
+        },
+        {
+          "componentId": "pg-ha",
+          "role": "High-availability standby (visible multiplier)",
+          "drivenBy": "TopologyTier",
+          "matchClass": "closest-available",
+          "capabilityEvidence": "RDS Multi-AZ and Flexible Server zone-redundant HA both run a synchronous standby and roughly double compute. Standby storage billing differs.",
+          "quantityFormula": "rate * 730 hours * standby_count, where standby_count = nodes - 1 for zone-redundant topology",
+          "aws": {"meterQuery": "AmazonRDS | Multi-AZ"},
+          "azure": {"meterQuery": "Flexible Server zone-redundant HA"}
+        }
+      ],
+      "notes": [
+        "HA is a visible multiplier, not a hidden line. Both run a synchronous standby and roughly double compute.",
+        "Burstable maps only for non-production, since it throttles under sustained load and carries no 24/7 support.",
+        "Where the RAM-per-vCore ratio forces Azure to a larger size to meet the memory target, the extra memory shows as headroom on the line."
+      ]
+    }
+  ],
+  "crossCutting": [
+    {"componentId": "egress", "drivenBy": "NetworkTransferProfile", "role": "Internet egress", "matchClass": "closest-available", "quantityFormula": "egress_GB * tiered_rate", "aws": {"meterQuery": "AWSDataTransfer | data transfer out | tiered"}, "azure": {"meterQuery": "serviceName=Bandwidth | internet egress | tiered"}},
+    {"componentId": "interzone", "drivenBy": "NetworkTransferProfile", "role": "Inter-zone traffic", "matchClass": "closest-available", "quantityFormula": "interzone_GB * rate", "aws": {"meterQuery": "AmazonEC2 | cross-AZ data transfer | both directions"}, "azure": {"meterQuery": "serviceName=Bandwidth | availability-zone data transfer"}},
+    {"componentId": "load-balancer", "drivenBy": "TopologyTier", "role": "Load balancer", "matchClass": "closest-available", "quantityFormula": "LB_hours * rate + capacity_units", "aws": {"meterQuery": "Elastic Load Balancing | ALB or NLB | confirm offer code"}, "azure": {"meterQuery": "serviceName=Load Balancer | Standard | rules + data processed"}},
+    {"componentId": "backup-storage", "drivenBy": "BackupPolicy", "role": "Backup storage", "matchClass": "closest-available", "quantityFormula": "retained_GB * rate", "aws": {"meterQuery": "AWS Backup or snapshot storage"}, "azure": {"meterQuery": "Azure Backup vault + snapshot storage"}},
+    {"componentId": "support", "drivenBy": "SupportTier", "role": "Support plan", "matchClass": "closest-available", "quantityFormula": "ExcludedCostLedger by default; percent overlay when the customer sets a tier", "aws": {"meterQuery": "AWS Support plan, percent of spend"}, "azure": {"meterQuery": "Azure support plan, percent or flat"}}
+  ],
+  "harvesterTargets": {
+    "note": "Pull the full catalog for these services in the approved regions, not just mapped SKUs, so the PriceBook stays complete. Confirm every string against the live feed; the prior review caught that AmazonEBS is not an offer code (EBS meters live inside AmazonEC2).",
+    "aws": {
+      "AmazonEC2": ["Compute Instance", "Storage (gp3 capacity)", "System Operation (gp3 provisioned IOPS)", "Provisioned Throughput (gp3)", "cross-AZ data transfer"],
+      "AmazonRDS": ["Database Instance", "Database Storage", "Provisioned IOPS", "Storage Snapshot"],
+      "AWSDataTransfer": ["internet egress tiers"],
+      "ElasticLoadBalancing": ["ALB", "NLB (confirm exact offer code)"]
+    },
+    "azure": {
+      "Virtual Machines": ["serviceFamily=Compute"],
+      "Storage": ["Premium SSD v2 capacity/IOPS/throughput", "Premium SSD OS disks"],
+      "Azure Database for PostgreSQL": ["Flexible Server compute/storage/backup"],
+      "Bandwidth": ["serviceFamily=Networking egress + zone transfer"],
+      "Load Balancer": ["Standard"]
+    }
+  },
+  "openItems": [
+    "Approved instance families (Intel default; confirm AMD/Arm and compute/memory-optimized in scope).",
+    "Approved regions (Premium SSD v2 and zone-redundant PostgreSQL HA have region constraints).",
+    "Linux licensing (open-source vs commercial RHEL/SUSE; BYO subscription).",
+    "PostgreSQL tier policy (is Burstable ever acceptable, non-production only).",
+    "Support treatment (ExcludedCostLedger vs percent overlay)."
+  ]
+}

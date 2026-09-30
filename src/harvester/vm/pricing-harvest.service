@@ -1,0 +1,18 @@
+[Unit]
+Description=Scheduled public price harvest (runs only when the schedule requested one)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/pricing-harvester/harvest.env
+ExecStart=/opt/pricing-harvester/bin/harvest-start
+ExecStopPost=/opt/pricing-harvester/bin/harvest-finish
+# Bounded run: the schedule waits up to 6 hours for power-off, then deallocates regardless.
+TimeoutStartSec=5h
+TimeoutStopSec=10min
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

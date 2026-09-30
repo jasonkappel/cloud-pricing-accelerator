@@ -1,0 +1,54 @@
+# Never commit price data (snapshots live in Blob/SQL, not Git) or harvester spool files
+src/harvester/data/**
+src/harvester/.pytest_cache/**
+**/offers/**
+*.pricebook.json
+*.ndjson
+*.sqlite
+*.sqlite3
+*.parquet
+*.csv.gz
+*.json.gz
+
+# Secrets / credentials (use managed identity + Key Vault; never commit secrets)
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.pfx
+*.p12
+*.key
+secrets/
+local.settings.json
+.msal_token_cache*
+.cache/
+
+# Azure / azd
+.azure/
+.copilot-azure/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Node (web app)
+node_modules/
+dist/
+build/
+
+# Bicep
+*.bicep.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Deployment packages built by scripts/deploy-apps.ps1
+.deploy/
+# Bicep build output
+infra/main.json

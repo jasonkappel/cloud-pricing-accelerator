@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# ExecStopPost for pricing-harvest.service. If a harvest was attempted, record the result as a tag on
+# this VM and power off; the schedule then deallocates the VM and alerts on anything but success.
+# A maintenance boot (no request) is left running.
+set -uo pipefail
+
+state=/run/pricing-harvester
+python=/opt/pricing-harvester/venv/bin/python
+
+[ -f "$state/request" ] || exit 0
+
+request=$(cat "$state/request")
+step=$(cat "$state/step" 2>/dev/null || echo start)
+snapshot=$(cat "$state/snapshot" 2>/dev/null || true)
+
+if [ "${SERVICE_RESULT:-}" = "success" ] && [ "$step" = "done" ]; then
+    status=succeeded
+    detail="$snapshot"
+else
+    status=failed
+    detail="$step${snapshot:+:$snapshot}"
+fi
+echo "Harvest $status ($detail); service result ${SERVICE_RESULT:-unknown}."
+
+cd /opt/pricing-harvester/app
+for attempt in 1 2 3 4 5; do
+    if runuser -u pricing-harvester -- "$python" -m harvester.vm_signal report \
+        --request "$request" --status "$status" --detail "$detail" \
+        --client-id "$HARVESTER_CLIENT_ID"; then
+        break
+    fi
+    echo "Recording the result failed (attempt $attempt); retrying."
+    sleep 20
+done
+
+rm -f "$state/request"
+systemctl poweroff --no-block

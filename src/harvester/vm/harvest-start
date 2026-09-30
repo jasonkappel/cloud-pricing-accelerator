@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# Runs at every boot (pricing-harvest.service). Harvests only when the schedule tagged this VM with a
+# pending request, so a maintenance start never collects. Each step records its name so the finish
+# hook can report exactly where a failure happened.
+set -euo pipefail
+
+state=/run/pricing-harvester
+python=/opt/pricing-harvester/venv/bin/python
+runs=/var/lib/pricing-harvester/runs
+
+install -d -m 0755 "$state"
+rm -f "$state/request" "$state/step" "$state/snapshot"
+
+as_harvester() {
+    runuser -u pricing-harvester -- "$@"
+}
+
+cd /opt/pricing-harvester/app
+request=$(as_harvester "$python" -m harvester.vm_signal pending --wait-seconds 300)
+if [ -z "$request" ]; then
+    echo "No pending harvest request; this is a maintenance boot. Not harvesting."
+    exit 0
+fi
+echo "$request" > "$state/request"
+echo "Harvest request $request"
+
+# Claim the request before doing any work so a reboot or later manual start cannot rerun it.
+echo claim > "$state/step"
+as_harvester "$python" -m harvester.vm_signal report \
+    --request "$request" --status running --client-id "$HARVESTER_CLIENT_ID"
+
+step() {
+    echo "$1" > "$state/step"
+    echo "== $1"
+}
+
+step disk-check
+# The data disk mount is nofail, so it can finish after this unit starts.
+for _ in $(seq 1 30); do
+    mountpoint -q /var/lib/pricing-harvester && break
+    sleep 5
+done
+# Earlier baselines are only download caches of Published artifacts; the current one is fetched again.
+mountpoint -q /var/lib/pricing-harvester && rm -rf "$runs"/*.baseline
+/usr/local/sbin/check-harvester-disk
+
+snapshot="harvest-$(date -u +%Y%m%dT%H%M%SZ)"
+echo "$snapshot" > "$state/snapshot"
+run_dir="$runs/$snapshot"
+baseline_dir="$runs/$snapshot.baseline"
+verifier=(--approval-key-id "$APPROVAL_KEY_ID" --verifier-identity-client-id "$HARVESTER_CLIENT_ID")
+
+# Fetch the current Published price book first, so a missing permission fails before a long collect.
+# The files are untrusted until validate verifies the signed approval and the pointer binding.
+step baseline
+as_harvester "$python" -m harvester.published_fetch \
+    --account-url "$HARVESTER_ACCOUNT_URL" \
+    --managed-identity-client-id "$HARVESTER_CLIENT_ID" \
+    --output-dir "$baseline_dir"
+pointer="$baseline_dir/current.json"
+
+step collect
+as_harvester "$python" -m harvester collect \
+    --run-dir "$run_dir" \
+    --snapshot-id "$snapshot" \
+    --azure-region "$HARVEST_AZURE_REGION" \
+    --aws-region "$HARVEST_AWS_REGION"
+
+step validate
+if [ -f "$pointer" ]; then
+    artifacts=("$baseline_dir"/*.pricebook.ndjson)
+    [ "${#artifacts[@]}" -eq 1 ] && [ -f "${artifacts[0]}" ] \
+        || { echo "Expected exactly one Published artifact." >&2; exit 1; }
+    as_harvester "$python" -m harvester validate --run-dir "$run_dir" \
+        --previous-artifact "${artifacts[0]}" --current-pointer "$pointer" "${verifier[@]}"
+    # Diff SkuMap rates against the extract of the Published snapshot, derived from its verified artifact.
+    as_harvester "$python" -m harvester derive --artifact "${artifacts[0]}" \
+        --output-dir "$baseline_dir/extract" "${verifier[@]}"
+    previous_extract="$baseline_dir/extract/rate-extract.json"
+else
+    # Nothing is published yet: declare a bootstrap and diff against the packaged baseline extract.
+    as_harvester "$python" -m harvester validate --run-dir "$run_dir" --bootstrap
+    previous_extract=/opt/pricing-harvester/app/harvester/baseline-rate-extract.json
+fi
+
+# Bind every SkuMap rate key to exactly one harvested row and diff against the approved baseline.
+# The spec scope must equal the harvest regions; a mismatch or an ambiguous selector stops the run.
+step derive
+as_harvester "$python" -m harvester derive \
+    --run-dir "$run_dir" \
+    --previous-extract "$previous_extract"
+
+step stage
+as_harvester "$python" -m harvester stage-blob \
+    --run-dir "$run_dir" \
+    --account-url "$HARVESTER_ACCOUNT_URL" \
+    --managed-identity-client-id "$HARVESTER_CLIENT_ID" \
+    --previous-extract "$previous_extract"
+
+step done
+echo "Harvest $snapshot staged."

@@ -1,0 +1,80 @@
+{
+  "application": "StatementHub (synthetic)",
+  "environments": [
+    "Dev",
+    "Test",
+    "Pre-Prod",
+    "Production"
+  ],
+  "compute_units": [
+    {
+      "name": "web-prod",
+      "env": "Production",
+      "count": 2,
+      "os": "Windows Server 2022",
+      "license": "License included",
+      "vcpu": 4,
+      "ram_gb": 16,
+      "runtime": "24x7"
+    },
+    {
+      "name": "app-prod",
+      "env": "Production",
+      "count": 2,
+      "os": "RHEL 9",
+      "license": "Subscription",
+      "vcpu": 8,
+      "ram_gb": 32,
+      "runtime": "24x7"
+    },
+    {
+      "name": "app-test",
+      "env": "Test",
+      "count": 1,
+      "os": "RHEL 9",
+      "license": "Subscription",
+      "vcpu": 4,
+      "ram_gb": 16,
+      "runtime": "Unknown"
+    }
+  ],
+  "database_units": [
+    {
+      "name": "STMTPG",
+      "env": "Production",
+      "engine": "PostgreSQL 15",
+      "nodes": 2,
+      "vcpu": 8,
+      "ram_gb": 64,
+      "size_gb": 1000,
+      "ha": true
+    }
+  ],
+  "storage_units": [
+    {
+      "name": "statements-prod-disk",
+      "env": "Production",
+      "type": "block",
+      "allocated_gb": 2000,
+      "used_gb": 1400,
+      "target_iops": 3000,
+      "target_mbps": 180
+    }
+  ],
+  "expected_gaps": [
+    {
+      "id": "compute-3.runtime",
+      "type": "AppFactGap",
+      "material": true,
+      "reason": "Server runtime is Unknown; cannot compute run-hours."
+    },
+    {
+      "id": "P1.regions",
+      "type": "PricingPolicyGap",
+      "material": true,
+      "reason": "Approved primary/DR regions not set; cannot select a PriceBook region."
+    }
+  ],
+  "expected_state": "DraftBenchmark",
+  "note": "Two open material Gaps must hold the headline until resolved or defaulted by policy."
+}

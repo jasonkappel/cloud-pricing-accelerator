@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "demo-pricebook-approval-v1",
+  "approvedBy": "Sample Approver (demo data)",
+  "approvedAt": "2026-09-23T01:32:00+00:00",
+  "extractContentDigest": "496711e3ff90d10b2086c285287904b63cd4edfbb3471aa5cc7ad8dee33414f5",
+  "sourceSnapshotId": "trust-20260922e",
+  "sourceContentHash": "00b77e32d1bfaa1a673e998eabf40260dd66e137ab797bd5a385474a421fcd1a",
+  "normalizationPolicy": "Three-year All Upfront reservation term charges are divided by 26,280 hours; Savings Plan entries use published effective hourly rates; storage and software remain undiscounted."
+}
